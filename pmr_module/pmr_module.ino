@@ -27,10 +27,6 @@ unsigned long lastSample = 0;
 
 //internal variables
 boolean verbose = false;
-int servoPin = 9;  
-int topoPinP  = 7;
-int topoPinY = 6;
-int txPin = 8;
 
 //tmp pointer for command parsing
 uint8_t commP1;
@@ -75,7 +71,7 @@ String commandBuffer = "";
 Topology topology[32];  //relative topology in direction from master to last slave
 byte pitchingJoints[32]; //adresses of the pitching group
 
-SoftwareSerial softSerial = SoftwareSerial(topoPinP, txPin);
+SoftwareSerial softSerial = SoftwareSerial(TOPO_PIN_P, TX_PIN);
 
 PWMServo servo;
 //int servoPos = 0;//degToPwm(0);
@@ -88,9 +84,9 @@ void setup()
 {
   pinMode(3, OUTPUT); 
   pinMode(4, OUTPUT);  
-  pinMode(topoPinP, INPUT);
-  pinMode(topoPinY, INPUT);
-  pinMode(txPin, OUTPUT);
+  pinMode(TOPO_PIN_P, INPUT);
+  pinMode(TOPO_PIN_Y, INPUT);
+  pinMode(TX_PIN, OUTPUT);
   
   connectionStatus = DISCONNECTED;
   
@@ -275,7 +271,7 @@ void initSoftwareUart()
   }
   */
   //try Pitch  
-  softSerial = SoftwareSerial(topoPinP, txPin);  
+  softSerial = SoftwareSerial(TOPO_PIN_P, TX_PIN);  
   softSerial.begin(baudRate);
   delay(1); //safety margin
   softSerial.flush();
@@ -290,7 +286,7 @@ void initSoftwareUart()
     connectionStatus = SOFTWARE;
     lastDownBeat = millis();        
   } else{
-    softSerial = SoftwareSerial(topoPinY, txPin);   
+    softSerial = SoftwareSerial(TOPO_PIN_Y, TX_PIN);   
     softSerial.begin(baudRate);
     delay(1);
     softSerial.flush();

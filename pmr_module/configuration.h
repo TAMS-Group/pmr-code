@@ -32,6 +32,13 @@
 #define PWM_RANGE PWM_MAXIMUM - PWM_MINIMUM
 //########## Servo PWM parameters #################
 
+//########## Pin assignements #####################
+#define SERVO_PIN 9
+#define TOPO_PIN_P 7
+#define TOPO_PIN_Y 6
+#define TX_PIN 8
+//########## Pin assignements #####################
+
 
 enum CommandType
 {
