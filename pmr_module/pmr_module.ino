@@ -1,6 +1,4 @@
 #include <PWMServo.h>
-//#include <SoftwareServo.h>
-//#include <Servo.h>
 #include <EEPROM.h>
 #include <SoftwareSerial.h>
 
