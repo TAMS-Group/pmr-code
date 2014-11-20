@@ -1,6 +1,8 @@
+#include "configuration.h"
+#include "hardwareControl.h"
 #include <PWMServo.h>
-#include <EEPROM.h>
 #include <SoftwareSerial.h>
+#include <EEPROM.h>
 
 
 //If softwareSerial pins are improperly connected, the bus reads constant 0. To avoid this,
@@ -10,60 +12,18 @@ boolean master = true;
 byte adress = 0;
 //###############################################
 
-//########## Servo PWM parameters #################
-int pwm_minimum = 500;//400;
-int pwm_maximum = 2100;//2600;
-int pwm_range = pwm_maximum - pwm_minimum;
-int calibrationOffset = 0;
-//###############################################
-
-//########### sine generator parameters ##############
-const float pi = 3.14;
+//########sine generator parameters#########
 float sine_amplitude = 37;
 float sine_frequency = 0.5;
 float sine_phase = 130;
 float sine_offset = 0;
-//###############################################
+//##########################################
 
 float locomotionAngles[15];
 int sampling = 50;  //set one angle every x milliseconds
 unsigned long lastSample = 0;
 
-struct Topology
-{
-  byte adress;
-  boolean orientation;
-  Topology() {
-    adress = 128;
-    orientation = true;// true means the same orientation as the neighbour in upstream direction
-  }
-};
 
-enum CommandType
-{
-  TOPOLOGY = 0,//ok
-  HEARTBEAT = 1,//ok
-  SET_ANGLE = 2,//ok
-  GET_ANGLE = 3,
-  ENGAGE = 4,//ok
-  MESSAGE = 5,//ok
-  CALIB_SERVO = 6,
-  ANSWER_ANGLE = 7,  //maybe message is enough...
-  PING = 8,//ok
-  CONNECT = 9//ok
-};
-
-enum ConnectionStatus{
-  DISCONNECTED,
-  HARDWARE,
-  SOFTWARE
-};
-
-enum Locomotion
-{
-  WALK = 0,
-  ROLL = 1
-};
 
 //internal variables
 boolean verbose = false;
@@ -118,9 +78,11 @@ byte pitchingJoints[32]; //adresses of the pitching group
 SoftwareSerial softSerial = SoftwareSerial(topoPinP, txPin);
 
 PWMServo servo;
-int servoPos = 0;//degToPwm(0);
+//int servoPos = 0;//degToPwm(0);
 int maxAngle = 90;
 
+
+HardwareControl hc(master=true);
 
 void setup()  
 {
@@ -145,12 +107,6 @@ void setup()
   }else{
     digitalWrite(13, LOW);
     Serial.begin(baudRate);
-  }
-  // attention if it has never been written, then we don't know what will be read!!
-  restoreServoCalibData();
-  if((calibrationOffset > 30) || (calibrationOffset < -30)) {
-    if(master) Serial.println("ERROR: calibration offset is to big/small...set calibration offset to '0' ");
-    calibrationOffset = 0; 
   }
 }
 
@@ -260,7 +216,7 @@ void loop() {
       }
     }
   }
-  servo.write(servoPos+90);
+  hc.tick();
 }
 
 
@@ -685,14 +641,14 @@ void processCommand(byte adress, byte type, byte message)
          Serial.println();
       } break;
       case CALIB_SERVO: {
-        setCalibDataToServo(message);
+        hc.setServoCalibration(message);
       } break;
       case ENGAGE: {
-         engageServo(message);
+         hc.engageServo(message);
       }
       break;
       case SET_ANGLE: {
-         setAngle((int(message))-128);        
+         hc.setAngle((int(message))-128);        
       } break;
       case GET_ANGLE: {
       //   int currentAngle = servo.read();
@@ -753,13 +709,13 @@ void processCommand(byte adress, byte type, byte message)
         sendUpstream(adress, MESSAGE, message);
       } break;
       case CALIB_SERVO: {
-        setCalibDataToServo(message);
+        hc.setServoCalibration(message);
       } break;
       case ENGAGE: {
-         engageServo(message);
+         hc.engageServo(message);
       } break;
       case SET_ANGLE: {
-         setAngle(int(message)-128);
+         hc.setAngle(int(message)-128);
       } break;
       case GET_ANGLE: {
       //   int currentAngle = servo.read();
@@ -792,46 +748,15 @@ void printTopology() {
 }
 
 
-void engageServo(byte message)
-{  
-  boolean servoOn = (message>0);  
-  if(servoOn) {if(!servo.attached()) servo.attach(servoPin, pwm_minimum, pwm_maximum);
-  }else{ 
-    if(servo.attached()) servo.detach();
-  }  
-  /*  
-  if(master) {
-    Serial.println("new servo state: ");
-    Serial.print(servoEngaged);
-    Serial.println();
-  }
-  */
-}
-
-
-// sets the servo to a value given by a message read from the bus
-void setAngle(int angle)
-{  
-  engageServo(1);
-  servoPos = angle+calibrationOffset;
-  
- /* if(master) {
-    Serial.print("next angle: ");
-    Serial.print(angle);
-    Serial.print("-->");
-    Serial.println(servoPos);
-  }*/
-}
-
 
 // converts an angle from degrees to pwm-value in microseconds
 int degToPwm(float desiredDeg)
 {
   int result;
-  if(desiredDeg > maxAngle) {result = pwm_maximum;} 
-  else if(desiredDeg < -maxAngle) {result = pwm_minimum;} 
+  if(desiredDeg > maxAngle) {result = PWM_MAXIMUM;} 
+  else if(desiredDeg < -maxAngle) {result = PWM_MINIMUM;} 
   else {
-    result = (pwm_maximum-pwm_range/2) + desiredDeg*(pwm_range/(2*maxAngle));
+    result = (PWM_MAXIMUM-PWM_RANGE/2) + desiredDeg*(PWM_RANGE/(2*maxAngle));
   }  
   
   return result;  
@@ -840,7 +765,7 @@ int degToPwm(float desiredDeg)
 
 // output is angle in degree
 float sineFunction(float amp, float phase, float freq, float offset){
-  float result = sin((millis()/(float)1000*2*pi)*freq+(phase/360*2*pi))*amp;
+  float result = sin((millis()/(float)1000*2*PI)*freq+(phase/360*2*PI))*amp;
   result+=offset;
     
   return result;
@@ -871,7 +796,7 @@ void moveSinusoidal(bool forward){
         } else {Serial.print(angles[i]);}
       }        
       if(adress == topology[i].adress){
-        servoPos = static_cast<int>(angles[i]);
+        hc.setServoPosition(static_cast<int>(angles[i]));
       } else{
         sendDownstream(topology[i].adress, SET_ANGLE, (static_cast<byte>(angles[currentPitchingJoint]+128)));
       }
@@ -886,7 +811,7 @@ void moveRoll(bool forward){
   for(int i=0; i<modulesCount; i++){
     if(topology[i].orientation){
       if(adress == topology[i].adress){
-        servoPos = static_cast<int>(sineFunction(sine_amplitude, 0, sine_frequency, sine_offset));
+        hc.setServoPosition(static_cast<int>(sineFunction(sine_amplitude, 0, sine_frequency, sine_offset)));
       }else{
         sendDownstream(topology[i].adress, SET_ANGLE, (static_cast<byte>(rotate * sineFunction(sine_amplitude, 0, sine_frequency, sine_offset)+128)));
       }
@@ -898,24 +823,6 @@ void moveRoll(bool forward){
 }
 
 
-//TODO: testing the following three functions
-void setCalibDataToServo(byte calibData){
-  calibrationOffset = static_cast<int>(calibData);
-  writeServoCalibDataToEeprom(calibData);  
-}
-
-
-//writes the calibration data for the null position of the servo to eeprom
-void writeServoCalibDataToEeprom(byte data){
-  EEPROM.write(0, data);
-}
-
-
-//loads the calibration data for the null position of the servo from eeprom
-byte restoreServoCalibData(){
-  calibrationOffset =  static_cast<int>(EEPROM.read(0));  
-  return calibrationOffset;
-}
 
 
 void visualiseConnectionStatus(){
@@ -939,32 +846,3 @@ void countPitchingJoints(){
     if(topology[i].orientation) pitchingJointsCount++;  
   }
 } 
-
-/*
-// moves the connected servo to desired position in degree
-void moveServoToDeg(float angle)
-{
- //  int goalPos = degToPwm(angle);
-
-   //if(!servo.attached()) servo.attach(servoPin);
-   //servo.writeMicroseconds(goalPos);
-//   servoPosition(servoPin, goalPos);   
-
-   //if(!servoEngaged) servoEngaged = true;
-  // servoPos = degToPwm(angle+calibrationOffset);
-   servoPos = angle+calibrationOffset;
-}
-*/
-
-
-// @deprecated
-// my own very simple pwm servo control 
-void setServoPosition(int servopin, int pulsemicros)
-{
-  for(int i=0; i<1; i++) {
-    digitalWrite(servopin, HIGH);
-    delayMicroseconds(pulsemicros);
-    digitalWrite(servopin, LOW);
-    delay(10);
-  }
-}
