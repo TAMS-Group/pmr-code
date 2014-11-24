@@ -1,5 +1,6 @@
 #include "configuration.h"
 #include "hardwareControl.h"
+#include "communication.h"
 #include <PWMServo.h>
 #include <SoftwareSerial.h>
 #include <EEPROM.h>
@@ -73,12 +74,10 @@ byte pitchingJoints[32]; //adresses of the pitching group
 
 SoftwareSerial softSerial = SoftwareSerial(TOPO_PIN_P, TX_PIN);
 
-PWMServo servo;
-//int servoPos = 0;//degToPwm(0);
 int maxAngle = 90;
 
 
-HardwareControl hc(master=true);
+HardwareControl hc(master);
 
 void setup()  
 {
@@ -212,6 +211,7 @@ void loop() {
       }
     }
   }
+  //trigger servo clock   
   hc.tick();
 }
 
