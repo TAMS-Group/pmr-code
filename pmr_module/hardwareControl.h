@@ -25,7 +25,7 @@
     class HardwareControl
     {
     public:
-        HardwareControl(bool master);
+        HardwareControl();
         void tick();
         void engageServo(char message);
         void setServoPosition(int servoPosition);
@@ -33,11 +33,7 @@
 
         void setServoCalibration(char calibData);
         char restoreServoCalibration();
-//        static void executeGCode(GCode *com);
-//        static void waitUntilEndOfAllMoves();
- //       static void setFanSpeed(int speed,bool wait); /// Set fan speed 0..255
     private:
-        bool master;
         int servoPosition;
         int calibrationOffset;
 

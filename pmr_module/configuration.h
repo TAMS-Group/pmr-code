@@ -18,12 +18,20 @@
 #ifndef CONFIGURATION_H
 #define CONFIGURATION_H
 
+//###### IMPORTANT BASIC SETTINGS #################
+#define MASTER true // Is this the master node?
+#define ADRESS 0    // Adress of this node. 0 if master, 1..254 else
+//###### IMPORTANT BASIC SETTINGS #################
 
-//########## Pin configuration ####################
-#define SERVO_PIN 9
 
-//########### sine generator parameters ###########
+//########## communication ########################
+//baudrate for internal communication on the "bus"
+#define BAUDRATE 9200 //57600//38400//28800//19200//14400//9600//2400
+#define MASTER_BAUDRATE 57600 // faster baudrate for communication between master and hostcomputer
+//########## communication ########################
+
 #define PI 3.141
+
 //########### sine generator parameters ###########
 
 //########## Servo PWM parameters #################
@@ -37,8 +45,13 @@
 #define TOPO_PIN_P 7
 #define TOPO_PIN_Y 6
 #define TX_PIN 8
+#define LED_PIN 13
 //########## Pin assignements #####################
 
+//########## Heartbeat ############################
+#define HEART_BEAT_INTERVAL 500.0
+#define HEART_BEAT_TIMEOUT 3000.0
+//########## Heartbeat ############################
 
 enum CommandType
 {

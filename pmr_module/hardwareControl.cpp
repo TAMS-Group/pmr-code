@@ -17,9 +17,8 @@
 
 #include "hardwareControl.h"
 
-HardwareControl::HardwareControl(bool master)
+HardwareControl::HardwareControl()
 {
-    HardwareControl::master = master;
     servoPosition = 0;
     int calibrationOffset = 0;
 
@@ -27,11 +26,14 @@ HardwareControl::HardwareControl(bool master)
     // attention if it has never been written, then we don't know what will be read!!
     restoreServoCalibration();
     if((calibrationOffset > 30) || (calibrationOffset < -30)) {
-        if(master) Serial.println("ERROR: calibration offset is to big/small...set calibration offset to '0' ");
+        if(MASTER) Serial.println("ERROR: calibration offset is to big/small...set calibration offset to '0' ");
         calibrationOffset = 0; 
     }
 }
 
+/* Must be called periodically with high frequence to hold the servos position.
+   Otherwise the servo would drive to the desired position and then release the torque
+*/
 void HardwareControl::tick()
 {
     servo.write(servoPosition+90);
@@ -48,7 +50,7 @@ void HardwareControl::engageServo(char message)
 
 void HardwareControl::setServoPosition(int servoPosition)
 {
-    HardwareControl::servoPosition = servoPosition;
+    servoPosition = servoPosition;
 }
 
 // sets the servo to a value given by a message read from the bus

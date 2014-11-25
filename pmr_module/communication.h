@@ -19,13 +19,38 @@
 #define COMMUNICATION_H
 
     #include "configuration.h"
+    #include <SoftwareSerial.h>
 
     class Communication
     {
     public:
-        Communication(bool master);
+        Communication();
+        void init();
+        bool heartBeat();
+        char initSoftwareUart();
+        void sendUpstream(char adress, char type, char message);
+        void sendDownstream(char adress, char type, char message);
+        bool readUpstream(char* adress, char* type, char* message);
+        bool readDownstream(char* adress, char* type, char* message);
+        void setUpBeat();
+        void setDownBeat();
+        void disconnect();
     private:
-        bool master;
+        char readAdress();
+        void handShake();
+        void visualizeConnectionStatus();
+
+        bool uartConnected;
+        bool softwareUartConnected;
+        unsigned long lastUpBeat;
+        unsigned long lastDownBeat;
+        unsigned long lastUpBeatSent;
+        unsigned long lastDownBeatSent;
+
+        SoftwareSerial softSerial;
+        ConnectionStatus connectionStatus;
+        unsigned long lastBlink;
+        uint8_t blinkStatus;
     };
 
 #endif // COMMUNICATION_H
