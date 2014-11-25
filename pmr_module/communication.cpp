@@ -204,17 +204,17 @@ bool Communication::readDownstream(char* adress, char* type, char* message) {
 */
 char Communication::readAdress()
 {
-    char adress = 255;
+    byte adress = 255;
     while(softSerial.available() > 3) {
-        if(softSerial.read() != char(254)) {continue;}
-        if(softSerial.peek() < char(254)) { 
-            char recv = softSerial.read();
-            char type = recv << 4;
+        if(softSerial.read() != byte(254)) {continue;}
+        if(softSerial.peek() < byte(254)) { 
+            byte recv = softSerial.read();
+            byte type = recv << 4;
             type = type >> 4;
             adress = recv >> 4;
-            if(softSerial.peek() >= char(254)) {continue;}
-            char message = softSerial.read();
-            if(softSerial.read() != char(255)) {continue;} //look for ending signature
+            if(softSerial.peek() >= byte(254)) {continue;}
+            byte message = softSerial.read();
+            if(softSerial.read() != byte(255)) {continue;} //look for ending signature
         }
         softSerial.read(); 
     }  
@@ -240,7 +240,7 @@ void Communication::setDownBeat()
 */
 char Communication::initSoftwareUart()
 {
-    char nextAdress = 255;
+    byte nextAdress = 255;
 //   /*
 //   if(master) {
 //     Serial.print("oldBufferSize: ");
@@ -319,9 +319,9 @@ void Communication::visualizeConnectionStatus(){
         case DISCONNECTED : digitalWrite(LED_PIN, LOW); break;
         case HARDWARE : {
             if(millis()-lastBlink > 30) {
-            blinkStatus = (blinkStatus == HIGH) ? LOW : HIGH;
-            digitalWrite(LED_PIN, blinkStatus);
-            lastBlink = millis();
+                blinkStatus = (blinkStatus == HIGH) ? LOW : HIGH;
+                digitalWrite(LED_PIN, blinkStatus);
+                lastBlink = millis();
             }      
         } break;
         case SOFTWARE : digitalWrite(LED_PIN, HIGH); break;
