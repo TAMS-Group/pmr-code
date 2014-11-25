@@ -50,7 +50,7 @@ void HardwareControl::engageServo(char message)
 
 void HardwareControl::setServoPosition(int servoPosition)
 {
-    servoPosition = servoPosition;
+    HardwareControl::servoPosition = servoPosition;
 }
 
 // sets the servo to a value given by a message read from the bus
@@ -59,11 +59,11 @@ void HardwareControl::setAngle(int angle)
   engageServo(1);
   setServoPosition(angle+calibrationOffset);
   
- /* if(master) {
+  /*if(MASTER) {
     Serial.print("next angle: ");
     Serial.print(angle);
     Serial.print("-->");
-    Serial.println(servoPos);
+    Serial.println(servoPosition);
   }*/
 }
 

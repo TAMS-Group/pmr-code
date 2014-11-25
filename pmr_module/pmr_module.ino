@@ -321,7 +321,7 @@ String nextParameter() {
 void processCommand(byte adress, byte type, byte message) 
 {
   if(MASTER) {
-    if(verbose && false) {
+    if(verbose) {
       Serial.print("adress: ");
       Serial.print(int(adress));
       Serial.print(" type: ");
