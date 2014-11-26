@@ -53,6 +53,16 @@
 #define HEART_BEAT_TIMEOUT 3000.0
 //########## Heartbeat ############################
 
+
+
+#if defined(ARDUINO) && ARDUINO >= 100
+#include "Arduino.h"
+#else
+#include "WProgram.h"
+#endif
+#include "HardwareSerial.h"
+
+
 enum CommandType
 {
     TOPOLOGY = 0,//ok
@@ -81,19 +91,12 @@ enum Locomotion
 
 struct Topology
 {
-    char adress;
+    byte adress;
     bool orientation;
     Topology() {
         adress = 128;
         orientation = true;// true means the same orientation as the neighbour in upstream direction
     }
 };
-
-#if defined(ARDUINO) && ARDUINO >= 100
-#include "Arduino.h"
-#else
-#include "WProgram.h"
-#endif
-#include "HardwareSerial.h"
 
 #endif // CONFIGURATION_H

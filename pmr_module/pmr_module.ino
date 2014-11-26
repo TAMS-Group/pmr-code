@@ -19,6 +19,7 @@
 #include "configuration.h"
 #include "hardwareControl.h"
 #include "communication.h"
+#include "pmrTopology.h"
 #include <PWMServo.h>
 #include <SoftwareSerial.h>
 #include <EEPROM.h>
@@ -35,7 +36,7 @@ float sine_offset = 0;
 //##########################################
 
 float locomotionAngles[15];
-int sampling = 50;  //set one angle every x milliseconds
+int sampling = 30;  //set one angle every x milliseconds
 unsigned long lastSample = 0;
 
 //internal variables
@@ -55,9 +56,6 @@ unsigned int busTestRecv = 0;
 unsigned int busTestFreq = 0;
 byte busTestAdress;
 
-byte modulesCount = 1;  //only used in master-mode. Initialized with 1 for master as first module.
-byte pitchingJointsCount = 1;
-
 //locomotion control variables
 boolean locomote = false;
 boolean forward = true;
@@ -66,19 +64,18 @@ boolean locomotionGather = false;
 
 String commandBuffer = "";
 
-Topology topology[32];  //relative topology in direction from master to last slave
-byte pitchingJoints[32]; //adresses of the pitching group
-
 int maxAngle = 90;
 
+// variables used in loop()
 byte _adress;
 byte _type;
 byte _message;
 bool _orientation;
 
-
+//objects
 HardwareControl hc;
 Communication com;
+PMRTopology topo;
 
 void setup()  
 {
@@ -88,17 +85,17 @@ void setup()
   pinMode(TOPO_PIN_Y, INPUT);
   pinMode(TX_PIN, OUTPUT);
 
-  if(MASTER) { 
-    //initialize topology array with master adress
-    topology[0].adress = ADRESS;
-  }
   com.init();
 }
 
 
 void loop() {
   if(com.connect(&_adress, &_orientation)) {
-    enqueModule(_adress, _orientation);
+    if(MASTER) {
+      topo.enqueModule(_adress, _orientation);
+    }else{
+      com.sendUpstream(_adress, TOPOLOGY, (byte)_orientation);
+    }
   }
   
   if(!com.heartBeat()) {
@@ -151,48 +148,6 @@ void loop() {
 
 
 
-// master: enques new module into topology arry
-// slave:  sends detected module upstream
-byte enqueModule(byte adress, boolean orientation) {  
-  if(MASTER){
-    Serial.println("Try to register new module with orientation: "+(String)orientation);
-    if((adress>15) || (adress<1)) {
-       Serial.println("ERROR: Invalid adress");
-       return modulesCount;
-    }
-    if(searchDuplicateInTopology(adress)) {
-      Serial.print("ERROR: Module ");
-      Serial.print(adress);
-      Serial.println(" is already registered");
-      return modulesCount;
-    }
-    topology[modulesCount].adress = adress;
-    topology[modulesCount].orientation = orientation ? topology[modulesCount-1].orientation : !topology[modulesCount-1].orientation;
-    modulesCount++;
-    countPitchingJoints();
-    printTopology();
-  } else{
-     com.sendUpstream(adress, TOPOLOGY, (char)orientation); 
-  }
-  return modulesCount;
-}
-
-
-// returns true if adress is already registered
-boolean searchDuplicateInTopology(byte adress){
-  boolean foundAdress = false;
-  for(int i=0; i<modulesCount; i++){
-    if(topology[i].adress == adress){
-      foundAdress = true;
-      break;
-    }
-  }
-  return foundAdress;
-}
-
-
-
-
 void parseCommand() {
   //extract the actual command
   commP1 = 0;
@@ -222,14 +177,14 @@ void parseCommand() {
     com.sendDownstream(commandAdress, PING, value);
     
   }else if(command.equalsIgnoreCase("topology")) {
-    printTopology();
+    topo.printTopology();
     
   }else if(command.equalsIgnoreCase("start")) {
     locomote = true;
     
   }else if(command.equalsIgnoreCase("stop")) {
-    locomote = false;   
-    
+    locomote = false;
+        
   }else if(command.equalsIgnoreCase("locomotion")) {
     String type = nextParameter();
     if(type.equalsIgnoreCase("walk")){
@@ -342,21 +297,12 @@ void processCommand(byte adress, byte type, byte message)
         if(message == 2) {
           //remove all modules beyond sender of disconnect message
           //topology should be automatically redetected as soon as new modules are connected to the open end
-          for(int i=modulesCount-1; i>0; i--) { // 1 is master and must not be deleted
-            if(topology[i].adress != adress) {
-              topology[i].adress = 255;
-              topology[i].orientation = true;
-              modulesCount = i;
-            }else{
-              break;
-            }           
-          }
+          topo.removeModules(adress);
           Serial.println("Modules disconnected, new topology: ");
-          countPitchingJoints();
-          printTopology();        
+          topo.printTopology();
         }else{
           boolean topoBool = (message==0) ? false : true;
-          enqueModule(adress, topoBool);
+          topo.enqueModule(adress, topoBool);
         }
       } break; 
       case HEARTBEAT: {
@@ -462,19 +408,6 @@ void processCommand(byte adress, byte type, byte message)
 }
 
 
-void printTopology() {
-  for(int i=0; i < modulesCount; i++) {
-    Serial.print("adress: ");
-    Serial.print(int(topology[i].adress));
-    Serial.print(" orientation: ");
-    topology[i].orientation ? Serial.println("pitch") : Serial.println("yaw");
-  }
-  Serial.print("number of pitching joints: ");
-  Serial.println(pitchingJointsCount);
-  Serial.println();
-}
-
-
 // output is angle in degree
 float sineFunction(float amp, float phase, float freq, float offset){
   float result = sin((millis()/(float)1000*2*PI)*freq+(phase/360*2*PI))*amp;
@@ -496,21 +429,22 @@ float* calculateNextJointPositions(int numOfJoints, bool forward){
 
 // generates sinusoidal locomotion in forward or backward direction
 void moveSinusoidal(bool forward){ 
-  float* angles = calculateNextJointPositions(pitchingJointsCount, forward); 
+  float* angles = calculateNextJointPositions(topo.getPitchingJointsCount(), forward);
+  byte modulesCount = topo.getModulesCount();
   
   byte currentPitchingJoint = 0;
   if(locomotionGather) {Serial.print("locomotion pattern:");}
   for(int i=0; i<modulesCount; i++){
-    if(topology[i].orientation){  
+    if(topo.getOrientation(i)){  
       if(locomotionGather){        
         if(i>0) {Serial.print(" ");}
         if(i==(modulesCount-1)) {Serial.println(angles[i]);
         } else {Serial.print(angles[i]);}
       }        
-      if(ADRESS == topology[i].adress){
+      if(ADRESS == topo.getAdress(i)){
         hc.setAngle(static_cast<int>(angles[i]));
       } else{
-        com.sendDownstream(topology[i].adress, SET_ANGLE, (static_cast<byte>(angles[currentPitchingJoint]+128)));
+        com.sendDownstream(topo.getAdress(i), SET_ANGLE, (static_cast<byte>(angles[currentPitchingJoint]+128)));
       }
       currentPitchingJoint++;
     }
@@ -520,24 +454,16 @@ void moveSinusoidal(bool forward){
 void moveRoll(bool forward){
   int dir = forward ? 1 : -1;
   short int rotate = 1;
-  for(int i=0; i<modulesCount; i++){
-    if(topology[i].orientation){
-      if(ADRESS == topology[i].adress){
+  for(int i=0; i<topo.getModulesCount(); i++){
+    if(topo.getOrientation(i)){
+      if(ADRESS == topo.getAdress(i)){
         hc.setServoPosition(static_cast<int>(sineFunction(sine_amplitude, 0, sine_frequency, sine_offset)));
       }else{
-        com.sendDownstream(topology[i].adress, SET_ANGLE, (static_cast<byte>(rotate * sineFunction(sine_amplitude, 0, sine_frequency, sine_offset)+128)));
+        com.sendDownstream(topo.getAdress(i), SET_ANGLE, (static_cast<byte>(rotate * sineFunction(sine_amplitude, 0, sine_frequency, sine_offset)+128)));
       }
     }else{
-      com.sendDownstream(topology[i].adress, SET_ANGLE, (static_cast<byte>(rotate * sineFunction(sine_amplitude, sine_phase, sine_frequency, sine_offset)+128)));
+      com.sendDownstream(topo.getAdress(i), SET_ANGLE, (static_cast<byte>(rotate * sineFunction(sine_amplitude, sine_phase, sine_frequency, sine_offset)+128)));
       rotate = rotate*-1;
     }
   }
 }
-
-
-void countPitchingJoints(){
-  pitchingJointsCount = 0;
-  for(int i=0; i<modulesCount; i++){
-    if(topology[i].orientation) pitchingJointsCount++;  
-  }
-} 
