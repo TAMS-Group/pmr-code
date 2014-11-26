@@ -30,7 +30,6 @@ Locomotion::Locomotion(Communication* com, HardwareControl* hc, PMRTopology* top
     sine_amplitude = 37;
     sine_frequency = 0.5;
     sine_phase = 130;
-    sine_offset = 0;
     //##########################################
 
     Locomotion::com = com;
@@ -125,9 +124,8 @@ void Locomotion::gatherAngles(bool gather)
 
 /* Output is angle in degree
 */
-float Locomotion::sineFunction(float amp, float phase, float freq, float offset){
+float Locomotion::sineFunction(float amp, float phase, float freq){
     float result = sin((millis()/(float)1000*2*PI)*freq+(phase/360*2*PI))*amp;
-    result+=offset;    
     return result;
 }
 
@@ -136,7 +134,7 @@ float Locomotion::sineFunction(float amp, float phase, float freq, float offset)
 float* Locomotion::calculateNextJointPositions(int numOfJoints, bool forward){
     int dir = forward ? 1 : -1;
     for(int i=0; i<numOfJoints; i++){
-        locomotionAngles[i] = sineFunction(sine_amplitude, sine_phase*(i*dir), sine_frequency, sine_offset);
+        locomotionAngles[i] = sineFunction(sine_amplitude, sine_phase*(i*dir), sine_frequency);
     }      
     return locomotionAngles;
 }
@@ -177,12 +175,12 @@ void Locomotion::moveRoll()
     for(int i=0; i<topology->getModulesCount(); i++){
         if(topology->getOrientation(i)){
             if(ADRESS == topology->getAdress(i)){
-                hc->setServoPosition(static_cast<int>(sineFunction(sine_amplitude, 0, sine_frequency, sine_offset)));
+                hc->setServoPosition(static_cast<int>(sineFunction(sine_amplitude, 0, sine_frequency)));
             }else{
-                com->sendDownstream(topology->getAdress(i), SET_ANGLE, (static_cast<byte>(rotate * sineFunction(sine_amplitude, 0, sine_frequency, sine_offset)+128)));
+                com->sendDownstream(topology->getAdress(i), SET_ANGLE, (static_cast<byte>(rotate * sineFunction(sine_amplitude, 0, sine_frequency)+128)));
             }
         }else{
-            com->sendDownstream(topology->getAdress(i), SET_ANGLE, (static_cast<byte>(rotate * sineFunction(sine_amplitude, sine_phase, sine_frequency, sine_offset)+128)));
+            com->sendDownstream(topology->getAdress(i), SET_ANGLE, (static_cast<byte>(rotate * sineFunction(sine_amplitude, sine_phase, sine_frequency)+128)));
         rotate = rotate*-1;
         }
     }

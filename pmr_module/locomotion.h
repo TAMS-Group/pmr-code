@@ -45,7 +45,7 @@
         void setSampling(unsigned int sampling);
         void gatherAngles(bool gather);
     private:
-        float sineFunction(float amp, float phase, float freq, float offset);
+        float sineFunction(float amp, float phase, float freq);
         float* calculateNextJointPositions(int numOfJoints, bool forward);
         void moveSinusoidal();
         void moveRoll();
@@ -62,7 +62,6 @@
         float sine_amplitude;
         float sine_frequency;
         float sine_phase;
-        float sine_offset;
         //##########################################
 
         Communication* com;
