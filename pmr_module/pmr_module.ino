@@ -475,21 +475,6 @@ void printTopology() {
 }
 
 
-
-// converts an angle from degrees to pwm-value in microseconds
-int degToPwm(float desiredDeg)
-{
-  int result;
-  if(desiredDeg > maxAngle) {result = PWM_MAXIMUM;} 
-  else if(desiredDeg < -maxAngle) {result = PWM_MINIMUM;} 
-  else {
-    result = (PWM_MAXIMUM-PWM_RANGE/2) + desiredDeg*(PWM_RANGE/(2*maxAngle));
-  }  
-  
-  return result;  
-}
-
-
 // output is angle in degree
 float sineFunction(float amp, float phase, float freq, float offset){
   float result = sin((millis()/(float)1000*2*PI)*freq+(phase/360*2*PI))*amp;
