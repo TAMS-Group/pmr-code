@@ -26,7 +26,7 @@
 
 //########## communication ########################
 //baudrate for internal communication on the "bus"
-#define BAUDRATE 9200 //57600//38400//28800//19200//14400//9600//2400
+#define BAUDRATE 19200 //57600//38400//28800//19200//14400//9600//2400
 #define MASTER_BAUDRATE 57600 // faster baudrate for communication between master and hostcomputer
 //########## communication ########################
 
