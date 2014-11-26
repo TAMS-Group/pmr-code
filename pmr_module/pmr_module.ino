@@ -56,8 +56,6 @@ BusTest bustest(&com);
 
 void setup()  
 {
-  pinMode(3, OUTPUT); 
-  pinMode(4, OUTPUT);  
   pinMode(TOPO_PIN_P, INPUT);
   pinMode(TOPO_PIN_Y, INPUT);
   pinMode(TX_PIN, OUTPUT);
