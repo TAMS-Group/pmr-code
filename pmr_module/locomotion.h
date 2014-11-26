@@ -35,7 +35,9 @@
         Locomotion(Communication* com, HardwareControl* hc, PMRTopology* topology);
         void tick();
         void start();
+        void startOscillation();
         void stop();
+        void stopOscillation();
         void walk();
         void roll();
         bool changeDirection();
@@ -44,19 +46,25 @@
         void setPhase(float phase);
         void setSampling(unsigned int sampling);
         void gatherAngles(bool gather);
+        void resetClockCounter();
     private:
         float sineFunction(float amp, float phase, float freq);
         float* calculateNextJointPositions(int numOfJoints, bool forward);
         void moveSinusoidal();
+        void moveSinusoidalLocal();
         void moveRoll();
 
         bool active;
+        bool oscillating;
         bool forward;
         LocomotionType locomotion;
         bool locomotionGather;
         float locomotionAngles[15];
         unsigned int sampling;
         unsigned long lastSample;
+        unsigned int lastOscillation;
+        unsigned long clockCounter;
+        unsigned long syncCounter;
 
         //########sine generator parameters#########
         float sine_amplitude;

@@ -76,7 +76,12 @@ enum CommandType
     CALIB_SERVO = 6,
     ANSWER_ANGLE = 7,  //maybe message is enough...
     PING = 8,//ok
-    CONNECT = 9//ok
+    CONNECT = 9,//ok
+    OSCILLATE = 10,
+    SET_FREQUENCY = 11,
+    SET_AMPLITUDE = 12,
+    SET_PHASE = 13,
+    OSCILLATOR_CLOCK_RESET = 14
 };
 
 struct Topology

@@ -91,16 +91,15 @@ void loop() {
         commandBuffer += recv;
       }
     }
-
-    //trigger locomotion module
-    locomotion.tick();
-
   }else{
     //tick readDownstream. Unnecessary if we are master, in this case downstream would point to the host.
     if(com.readDownstream(&_adress, &_type, &_message)) {
       processCommand(_adress, _type, _message);
     }
   }
+
+  //trigger locomotion module
+  locomotion.tick();
 
   //trigger servo clock   
   hc.tick();
@@ -159,6 +158,19 @@ void parseCommand() {
     
   }else if(command.equalsIgnoreCase("cd")) {
     locomotion.changeDirection();
+
+  }else if(command.equalsIgnoreCase("oscillate")) {
+    byte commandAdress = (byte) nextParameter().toInt();
+    byte value = (byte) nextParameter().toInt();
+    if(commandAdress==ADRESS || commandAdress==15) {
+      if(value == 1) {
+        locomotion.startOscillation();
+      }else{
+        locomotion.stopOscillation();
+      }
+    }else{
+      com.sendDownstream(commandAdress, OSCILLATE, value);
+    }
     
   }else if(command.equalsIgnoreCase("engage")) {
     byte commandAdress = (byte) nextParameter().toInt();
@@ -184,17 +196,32 @@ void parseCommand() {
       com.sendDownstream(commandAdress, CALIB_SERVO, calibData);
     }    
 
-  }else if(command.equalsIgnoreCase("setfrequency")) {    
+  }else if(command.equalsIgnoreCase("setfrequency")) {  
+    byte commandAdress = (byte) nextParameter().toInt();  
     String parameter = nextParameter();
     char tmp[parameter.length()+1];
     parameter.toCharArray(tmp, parameter.length()+1);
-    locomotion.setFrequency(atof(tmp));
+    if(commandAdress==ADRESS || commandAdress==15) {
+      locomotion.setFrequency(atof(tmp));
+    }else{
+      // We have a problem with the message concept at this point. Float values are not immediately possible.
+      // Therefore, we send 10/freq and interpret this value at the recieve-side as freq=10/value.
+      com.sendDownstream(commandAdress, SET_FREQUENCY, (byte)(10/atof(tmp)));
+    }
              
   }else if(command.equalsIgnoreCase("setamplitude")) {    
     locomotion.setAmplitude(nextParameter().toInt());
        
   }else if(command.equalsIgnoreCase("setphase")) {    
-    locomotion.setPhase(nextParameter().toInt());
+    byte commandAdress = (byte) nextParameter().toInt();  
+    int parameter = nextParameter().toInt();
+    if(commandAdress==ADRESS || commandAdress==15) {
+      locomotion.setPhase(parameter);
+    }else{
+      // We have a problem with the message concept at this point. 2^8=256, but we need 360.
+      // Therefore, we send phase/2 and interpret this value at the recieve-side as phase = value*2.
+      com.sendDownstream(commandAdress, SET_PHASE, (byte)(parameter/2));
+    }
  
   }else if(command.equalsIgnoreCase("setsampling")) {    
     locomotion.setSampling(nextParameter().toInt());
@@ -301,6 +328,13 @@ void processCommand(byte adress, byte type, byte message)
           Serial.println(int(message));
         }
       } break;
+      case OSCILLATE: {
+        if(message == 1) {
+          locomotion.startOscillation();
+        }else{
+          locomotion.stopOscillation();
+        }
+      } break;
       case CONNECT: {
         Serial.print("module ");
         Serial.print(int(adress));
@@ -357,6 +391,25 @@ void processCommand(byte adress, byte type, byte message)
       } break;
       case PING: {
         com.sendUpstream(adress, PING, message);
+      } break;
+      case OSCILLATE: {
+        if(message == 1) {
+          locomotion.startOscillation();
+          }else{
+            locomotion.stopOscillation();
+          }
+      } break;
+      case SET_FREQUENCY: {
+        locomotion.setFrequency(10.0/message);
+      } break;
+      case SET_AMPLITUDE: {
+        locomotion.setAmplitude(message);
+      } break;
+      case SET_PHASE: {
+        locomotion.setPhase(message*2.0);
+      } break;
+      case OSCILLATOR_CLOCK_RESET: {
+        locomotion.resetClockCounter();
       } break;
       default:
       break;

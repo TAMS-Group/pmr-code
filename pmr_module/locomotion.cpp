@@ -19,12 +19,15 @@
 
 Locomotion::Locomotion(Communication* com, HardwareControl* hc, PMRTopology* topology)
 {
-    active = false;
+    active = false; // generation of locomotion pattern (in master node)
+    oscillating = false; //simple oscillation, can be usen in every module
     forward = true;
     locomotion = WALK;
     locomotionGather = false;
-    sampling = 30;  //set one angle every x milliseconds
+    sampling = 1000;//30;  //set one angle every x milliseconds
     lastSample = 0;
+    lastOscillation = 0;
+    clockCounter = millis();
 
     //########sine generator parameters#########
     sine_amplitude = 37;
@@ -46,7 +49,8 @@ void Locomotion::tick()
             lastSample = millis();
             switch(locomotion) {
                 case WALK: {
-                    moveSinusoidal();
+                    //moveSinusoidal();
+                    moveSinusoidalLocal();
                 } break; 
                 case ROLL: {
                     moveRoll();
@@ -54,6 +58,21 @@ void Locomotion::tick()
                 default: {
                     moveSinusoidal();
                 } break;
+            }
+        }
+        if(millis()-syncCounter > 1000/sine_frequency) {
+            resetClockCounter();
+            com->sendDownstream(15, OSCILLATOR_CLOCK_RESET, 0);
+            syncCounter = millis();
+        }
+    }
+
+    if(oscillating) {
+        if(millis() > lastOscillation + 10) {  // 100Hz repitition frequency
+            if(active) { // if this is master and computes phase shifts for every module, my own phase must be 0
+                hc->setAngle(static_cast<int>(sineFunction(sine_amplitude, 0, sine_frequency)));    
+            }else{
+                hc->setAngle(static_cast<int>(sineFunction(sine_amplitude, sine_phase, sine_frequency)));
             }
         }
     }
@@ -64,6 +83,14 @@ void Locomotion::tick()
 void Locomotion::start()
 {
     active = true;
+    syncCounter = millis();
+}
+
+/* Starts simple oscillation in this module.
+*/
+void Locomotion::startOscillation()
+{
+    oscillating = true;
 }
 
 /* stops locomotion
@@ -71,6 +98,15 @@ void Locomotion::start()
 void Locomotion::stop()
 {
     active = false;
+    oscillating = false;
+    com->sendDownstream(15, OSCILLATE, 0);
+}
+
+/* Stops simple oscillation in this module.
+*/
+void Locomotion::stopOscillation()
+{
+    oscillating = false;
 }
 
 /* sets locomotion type to walk, caterpillar forward moving
@@ -122,10 +158,16 @@ void Locomotion::gatherAngles(bool gather)
     locomotionGather = gather;
 }
 
+void Locomotion::resetClockCounter()
+{
+    clockCounter = millis();
+}
+
 /* Output is angle in degree
 */
 float Locomotion::sineFunction(float amp, float phase, float freq){
-    float result = sin((millis()/(float)1000*2*PI)*freq+(phase/360*2*PI))*amp;
+    unsigned long localTime = millis()-clockCounter;
+    float result = sin((localTime/(float)1000*2*PI)*freq+(phase/360*2*PI))*amp;
     return result;
 }
 
@@ -161,6 +203,31 @@ void Locomotion::moveSinusoidal()
                 hc->setAngle(static_cast<int>(angles[i]));
             }else{
                 com->sendDownstream(topology->getAdress(i), SET_ANGLE, (static_cast<byte>(angles[currentPitchingJoint]+128)));
+            }
+            currentPitchingJoint++;
+        }
+    }    
+}
+
+
+/* generates sinusoidal locomotion in forward or backward direction
+   uses the oscillator on each module! -> (distributed motion pattern generation)
+*/
+void Locomotion::moveSinusoidalLocal()
+{
+    float* angles = calculateNextJointPositions(topology->getPitchingJointsCount(), forward);
+    byte modulesCount = topology->getModulesCount();
+  
+    byte currentPitchingJoint = 0;
+    for(int i=0; i<modulesCount; i++){
+        if(topology->getOrientation(i)){  
+            if(ADRESS == topology->getAdress(i)){
+                oscillating = true;
+            }else{
+                com->sendDownstream(topology->getAdress(i), SET_PHASE, (byte) (((int)(i*sine_phase)%360)/2));
+                com->sendDownstream(topology->getAdress(i), OSCILLATE, 1);
+                Serial.print("SLocal, phase: ");
+                Serial.println(((int)(i*sine_phase)%360)/2);
             }
             currentPitchingJoint++;
         }
