@@ -523,7 +523,7 @@ void moveSinusoidal(bool forward){
         } else {Serial.print(angles[i]);}
       }        
       if(ADRESS == topology[i].adress){
-        hc.setServoPosition(static_cast<int>(angles[i]));
+        hc.setAngle(static_cast<int>(angles[i]));
       } else{
         com.sendDownstream(topology[i].adress, SET_ANGLE, (static_cast<byte>(angles[currentPitchingJoint]+128)));
       }
