@@ -26,17 +26,18 @@
     public:
         Communication();
         void init();
+        bool connect(byte* adress, bool* orientation);
         bool heartBeat();
-        char initSoftwareUart();
-        void sendUpstream(char adress, char type, char message);
-        void sendDownstream(char adress, char type, char message);
-        bool readUpstream(char* adress, char* type, char* message);
-        bool readDownstream(char* adress, char* type, char* message);
+        void sendUpstream(byte adress, byte type, byte message);
+        void sendDownstream(byte adress, byte type, byte message);
+        bool readUpstream(byte* adress, byte* type, byte* message);
+        bool readDownstream(byte* adress, byte* type, byte* message);
         void setUpBeat();
         void setDownBeat();
         void disconnect();
     private:
-        char readAdress();
+        bool initSoftwareUart(byte* adress, bool* orientation);
+        byte readAdress();
         void handShake();
         void visualizeConnectionStatus();
 

@@ -1,3 +1,21 @@
+/*
+    This file is part of PMR-Firmware.
+
+    PMR-Firmware is free software: you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation, either version 3 of the License, or
+    (at your option) any later version.
+
+    PMR-Firmware is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
+
+    You should have received a copy of the GNU General Public License
+    along with PMR-Firmware.  If not, see <http://www.gnu.org/licenses/>.
+*/
+
+
 #include "configuration.h"
 #include "hardwareControl.h"
 #include "communication.h"
@@ -27,9 +45,6 @@ boolean verbose = false;
 uint8_t commP1;
 uint8_t commP2;
 
-//heartbeat
-unsigned long lastSoftwareUartInit = 0;
-
 //bus measuring
 boolean busTest = false;
 unsigned long busTestTime = 0;
@@ -54,13 +69,12 @@ String commandBuffer = "";
 Topology topology[32];  //relative topology in direction from master to last slave
 byte pitchingJoints[32]; //adresses of the pitching group
 
-SoftwareSerial softSerial = SoftwareSerial(TOPO_PIN_P, TX_PIN);
-
 int maxAngle = 90;
 
-char _adress;
-char _type;
-char _message;
+byte _adress;
+byte _type;
+byte _message;
+bool _orientation;
 
 
 HardwareControl hc;
@@ -83,7 +97,12 @@ void setup()
 
 
 void loop() {
+  if(com.connect(&_adress, &_orientation)) {
+    enqueModule(_adress, _orientation);
+  }
+  
   if(!com.heartBeat()) {
+    //lost downstream connection, remove modules from list
     processCommand(ADRESS, TOPOLOGY, 2);
   }
 
@@ -91,6 +110,7 @@ void loop() {
     processCommand(_adress, _type, _message);
   }
 
+  // Communication between master and host is currently handled in the main object, since it invokes a lot of functions
   if(MASTER) {
     while(Serial.available() > 0) {
       char recv = Serial.read();
@@ -138,31 +158,19 @@ byte enqueModule(byte adress, boolean orientation) {
     Serial.println("Try to register new module with orientation: "+(String)orientation);
     if((adress>15) || (adress<1)) {
        Serial.println("ERROR: Invalid adress");
-       softSerial.flush();
        return modulesCount;
     }
     if(searchDuplicateInTopology(adress)) {
       Serial.print("ERROR: Module ");
       Serial.print(adress);
       Serial.println(" is already registered");
-      softSerial.flush();
       return modulesCount;
     }
-    softSerial.flush();
     topology[modulesCount].adress = adress;
     topology[modulesCount].orientation = orientation ? topology[modulesCount-1].orientation : !topology[modulesCount-1].orientation;
     modulesCount++;
     countPitchingJoints();
     printTopology();
-    /*
-    if(verbose) {
-      Serial.print("Registered new module: ");
-      Serial.print(int(adress));
-      String pitchyaw = orientation ? "pitch" : "yaw";
-      Serial.print(" orientation: ");
-      Serial.println(pitchyaw);
-    }
-    */
   } else{
      com.sendUpstream(adress, TOPOLOGY, (char)orientation); 
   }
@@ -352,12 +360,7 @@ void processCommand(byte adress, byte type, byte message)
         }
       } break; 
       case HEARTBEAT: {
-        //Serial.print("old heartbeat at: ");
-        //Serial.println(lastDownBeat);
         if(message == 0) com.setDownBeat();
-        //Serial.print("new heartbeat at: ");
-        //Serial.println(lastDownBeat);        
-        if(softSerial.overflow()) Serial.println("overflow");
       } break;
       case MESSAGE: {
          Serial.print("Message from ");

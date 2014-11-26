@@ -28,6 +28,8 @@ Communication::Communication()
     blinkStatus = LOW;
 }
 
+/* Initializes the communication module. Should be called in the setup() function.
+*/
 void Communication::init()
 {
     if(MASTER) {   
@@ -45,6 +47,25 @@ void Communication::init()
     }
 }
 
+/* Initializes hardware- and software-Uart. Returns true if new module connects at the
+   softSerial, false otherwise. Result value can be use to indicate whether a new module must be enqued in masters topology table.
+   Must be called periodically (in the main loop)
+*/
+bool Communication::connect(byte* adress, bool* orientation)
+{
+    bool result = false;
+    //Upstream interface
+    if(!uartConnected) {
+        // send my adress over the hardware serial towards the potential master as init beacon until initial handshake is completed
+        handShake();
+    }
+    //Downstream interface
+    if(!softwareUartConnected && uartConnected){
+        // listen at the downstream interface only, if upstream connection (to the master) is already established
+        result = initSoftwareUart(&*adress, &*orientation);
+    }
+    return result;
+}
 
 /* This method validates the connection by sending and recieving heartbeats
    and must be called periodically from the main loop
@@ -57,10 +78,7 @@ bool Communication::heartBeat()
     visualizeConnectionStatus();
 
     //Upstream interface
-    if(!uartConnected) {
-        // send my adress over the hardware serial towards the potential master as init beacon until initial handshake is completed
-        handShake();      
-    }else{ // actual heartbeat
+    if(uartConnected){
         if(!MASTER) {
             // normal heartbeat
             if((millis()-lastUpBeatSent) > HEART_BEAT_INTERVAL) {
@@ -79,12 +97,6 @@ bool Communication::heartBeat()
     }
     
     //Downstream interface
-    if(!softwareUartConnected && uartConnected){
-        // listen at the downstream interface only, if upstream connection (to the master) is already established
-        initSoftwareUart();
-    }
-    
-    // actual heartbeat
     if(softwareUartConnected){
         if((millis()-lastDownBeatSent) > HEART_BEAT_INTERVAL) {
             sendDownstream(ADRESS, HEARTBEAT, 1);
@@ -110,18 +122,18 @@ bool Communication::heartBeat()
 }
 
 
-void Communication::sendUpstream(char adress, char type, char message)
+void Communication::sendUpstream(byte adress, byte type, byte message)
 {
-    char command = (adress << 4) | type;
+    byte command = (adress << 4) | type;
     Serial.write((uint8_t)254);
     Serial.write(command);
     Serial.write(message);
     Serial.write((uint8_t)255); 
 }
 
-void Communication::sendDownstream(char adress, char type, char message) 
+void Communication::sendDownstream(byte adress, byte type, byte message) 
 {
-  char command = (adress << 4) | type;
+  byte command = (adress << 4) | type;
   softSerial.write((uint8_t)254);  
   softSerial.write(command);
   softSerial.write(message);
@@ -129,18 +141,18 @@ void Communication::sendDownstream(char adress, char type, char message)
 }
 
 
-bool Communication::readUpstream(char* adress, char* type, char* message) {
+bool Communication::readUpstream(byte* adress, byte* type, byte* message) {
     bool result = false;
     if(softwareUartConnected){
         if(softSerial.available()){
             while(softSerial.available() > 3) {
-                if(softSerial.read() != char(254)) {continue;}
-                if(softSerial.peek() < char(254)) { 
-                    char recv = softSerial.read();
+                if(softSerial.read() != byte(254)) {continue;}
+                if(softSerial.peek() < byte(254)) { 
+                    byte recv = softSerial.read();
                     *type = recv << 4;
                     *type = *type >> 4;
                     *adress = recv >> 4;
-                    if(softSerial.peek() >= char(254)) {continue;}
+                    if(softSerial.peek() >= byte(254)) {continue;}
                     *message = softSerial.read();
                     if(softSerial.read() != byte(255)) {continue;} //look for ending signature
 
@@ -168,19 +180,19 @@ bool Communication::readUpstream(char* adress, char* type, char* message) {
 }
 
 
-bool Communication::readDownstream(char* adress, char* type, char* message) {
+bool Communication::readDownstream(byte* adress, byte* type, byte* message) {
     bool result = false;
     if(!MASTER && uartConnected){
         while(Serial.available() > 3) {
-            if(Serial.read() != char(254)) {continue;}
-            if(Serial.peek() < char(254)) { 
-                char recv = Serial.read();
+            if(Serial.read() != byte(254)) {continue;}
+            if(Serial.peek() < byte(254)) { 
+                byte recv = Serial.read();
                 *type = recv << 4;
                 *type = *type >> 4;
                 *adress = recv >> 4;
-                if(Serial.peek() >= char(254)) {continue;}
+                if(Serial.peek() >= byte(254)) {continue;}
                 *message = Serial.read();
-                if(Serial.read() != char(255)) {continue;} //look for ending signature
+                if(Serial.read() != byte(255)) {continue;} //look for ending signature
                 if((*adress == ADRESS) || (*adress == 15)) { //my adress or broadcast
                     result = true;
                     if(*adress == 15) {
@@ -199,12 +211,28 @@ bool Communication::readDownstream(char* adress, char* type, char* message) {
 }
 
 
+/* Sets the lastUpBeat to !now
+*/
+void Communication::setUpBeat()
+{
+    lastUpBeat = millis();
+}
+
+/* Sets the lastDownBeat to !now
+*/
+void Communication::setDownBeat()
+{
+    lastDownBeat = millis();
+}
+
+
 
 /* Tries to read the adress from a freshly connected module
 */
-char Communication::readAdress()
+byte Communication::readAdress()
 {
     byte adress = 255;
+
     while(softSerial.available() > 3) {
         if(softSerial.read() != byte(254)) {continue;}
         if(softSerial.peek() < byte(254)) { 
@@ -222,32 +250,15 @@ char Communication::readAdress()
 }
 
 
-/* Sets the lastUpBeat to !now
-*/
-void Communication::setUpBeat()
-{
-    lastUpBeat = millis();
-}
-
-void Communication::setDownBeat()
-{
-    lastDownBeat = millis();
-}
-
 /* initSoftwareUart tries to connect the softwareSerial interface
-   in pitch configuration, and if not successfull in yaw configuration.
-   It returns the adress of the new connected module or 255 otherwise.
+   in pitch configuration, and if not successful in yaw configuration.
+   Returns true if initialization is successful, false otherwise.
 */
-char Communication::initSoftwareUart()
+bool Communication::initSoftwareUart(byte* adress, bool* orientation)
 {
+    bool result = false;
     byte nextAdress = 255;
-//   /*
-//   if(master) {
-//     Serial.print("oldBufferSize: ");
-//     Serial.print(softSerial.available());
-//     Serial.println()
-//   }
-//   */
+
    //try Pitch  
    softSerial = SoftwareSerial(TOPO_PIN_P, TX_PIN);  
    softSerial.begin(BAUDRATE);
@@ -256,9 +267,10 @@ char Communication::initSoftwareUart()
    delay(2);
    //try to read byte:   
    nextAdress = readAdress();
- //  if(master) Serial.println("try pitch");
-   if(nextAdress < 254){    
-//     enqueModule(byte(nextAdress), true);
+   if(nextAdress < 254){
+        *adress = nextAdress;
+        *orientation = true;
+        result = true;
         sendDownstream(nextAdress, CONNECT, 1); //handshake
         softwareUartConnected = true;
         connectionStatus = SOFTWARE;
@@ -270,32 +282,35 @@ char Communication::initSoftwareUart()
         softSerial.flush();
         delay(2);
         nextAdress = readAdress();
-    //  if(master) Serial.println("try yaw");
         if(nextAdress < 254){      
-//          enqueModule(byte(nextAdress), false);
+            *adress = nextAdress;
+            *orientation = false;
+            result = true;
             sendDownstream(nextAdress, CONNECT, 1); //handshake
             softwareUartConnected = true;
             connectionStatus = SOFTWARE;
             lastDownBeat = millis();
         }
    }
-   return nextAdress;     
+   return result;
 }
 
+/* Runs a simple handshake protocoll at the upstream interface to connect to the snake.
+*/
 // todo: when alternating the orientation of the module sometimes there is data on the old connected topoPin which leads to temporary wrong orientation determination
 void Communication::handShake(){
   sendUpstream(ADRESS, CONNECT, 0);
   delay(10);
   while(Serial.available() > 3) {
-    if(Serial.read() != char(254)) continue;
-    if(Serial.peek() < char(254)) { 
-      char recv = Serial.read();
-      char type = recv << 4;
+    if(Serial.read() != byte(254)) continue;
+    if(Serial.peek() < byte(254)) { 
+      byte recv = Serial.read();
+      byte type = recv << 4;
       type = type >> 4;
-      char messageAdress = recv >> 4;
-      if(Serial.peek() >= char(254)) continue;
-      char message = Serial.read();
-      if(Serial.read() != char(255)) continue; //look for ending signature
+      byte messageAdress = recv >> 4;
+      if(Serial.peek() >= byte(254)) continue;
+      byte message = Serial.read();
+      if(Serial.read() != byte(255)) continue; //look for ending signature
      // else{Serial.read();}
       if((messageAdress == ADRESS) && (message == 1)) { //my adress or broadcast
         uartConnected = true;
@@ -313,7 +328,9 @@ void Communication::disconnect()
     connectionStatus = DISCONNECTED;
 }
 
-
+/* Visualizes connection with the arduino status led.
+   Off: no connection, On: full connection, Blink: upstream connection to master, waiting for further modules at the downstream interface.
+*/
 void Communication::visualizeConnectionStatus(){
     switch(connectionStatus){
         case DISCONNECTED : digitalWrite(LED_PIN, LOW); break;
