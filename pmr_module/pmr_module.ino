@@ -20,6 +20,7 @@
 #include "hardwareControl.h"
 #include "communication.h"
 #include "pmrTopology.h"
+#include "busTest.h"
 #include <PWMServo.h>
 #include <SoftwareSerial.h>
 #include <EEPROM.h>
@@ -46,16 +47,6 @@ boolean verbose = false;
 uint8_t commP1;
 uint8_t commP2;
 
-//bus measuring
-boolean busTest = false;
-unsigned long busTestTime = 0;
-unsigned long busTestLastSent = 0;
-unsigned int busTestMessages = 0;
-unsigned int busTestSent = 0;
-unsigned int busTestRecv = 0;
-unsigned int busTestFreq = 0;
-byte busTestAdress;
-
 //locomotion control variables
 boolean locomote = false;
 boolean forward = true;
@@ -76,6 +67,7 @@ bool _orientation;
 HardwareControl hc;
 Communication com;
 PMRTopology topo;
+BusTest bustest(&com);
 
 void setup()  
 {
@@ -144,6 +136,9 @@ void loop() {
   }
   //trigger servo clock   
   hc.tick();
+
+  //trigger bustest clock
+  bustest.tick();
 }
 
 
@@ -184,7 +179,7 @@ void parseCommand() {
     
   }else if(command.equalsIgnoreCase("stop")) {
     locomote = false;
-        
+
   }else if(command.equalsIgnoreCase("locomotion")) {
     String type = nextParameter();
     if(type.equalsIgnoreCase("walk")){
@@ -245,24 +240,12 @@ void parseCommand() {
     locomotionGather = false;    
     
   }else if(command.equalsIgnoreCase("bustest")) {    
-    busTest = !busTest;
-    if(busTest) {
-      Serial.println("BusTest enabled");
-      busTestTime = millis();
-      busTestMessages = 0;
-      busTestSent = 0;
-      busTestRecv = 0;
-      busTestFreq = nextParameter().toInt();
-      busTestAdress = (byte) nextParameter().toInt();
-      if(busTestFreq > 0) {
-        Serial.print("sending ping message to ");
-        Serial.print(busTestAdress);
-        Serial.print(" every ");
-        Serial.print(busTestFreq);
-        Serial.println("ms");
-      }
+    if(bustest.isActive()) {
+      bustest.stop();
     }else{
-      Serial.println("BusTest disabled");
+      int freq = nextParameter().toInt();
+      byte adress = nextParameter().toInt();
+      bustest.start(freq, adress);
     }
                                 
   }else{
@@ -335,8 +318,8 @@ void processCommand(byte adress, byte type, byte message)
         //sendViaBluetooth(currentAngle);
       } break;
       case PING: {
-        if(busTest && (busTestFreq > 0)) {
-          busTestRecv++;
+        if(bustest.isActive()) {
+          bustest.ping();
         }else{
           Serial.print("ping_reply from ");
           Serial.print(int(adress));

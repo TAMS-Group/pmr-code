@@ -35,6 +35,7 @@
         void setUpBeat();
         void setDownBeat();
         void disconnect();
+        unsigned int getMessagesSent();
     private:
         bool initSoftwareUart(byte* adress, bool* orientation);
         byte readAdress();
@@ -47,6 +48,7 @@
         unsigned long lastDownBeat;
         unsigned long lastUpBeatSent;
         unsigned long lastDownBeatSent;
+        unsigned int messagesSent;
 
         SoftwareSerial softSerial;
         ConnectionStatus connectionStatus;

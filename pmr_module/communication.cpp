@@ -26,6 +26,7 @@ Communication::Communication()
     lastUpBeat = lastDownBeat = lastUpBeatSent = lastDownBeatSent = 0;
     lastBlink = 0;
     blinkStatus = LOW;
+    messagesSent = 0;
 }
 
 /* Initializes the communication module. Should be called in the setup() function.
@@ -133,11 +134,12 @@ void Communication::sendUpstream(byte adress, byte type, byte message)
 
 void Communication::sendDownstream(byte adress, byte type, byte message) 
 {
-  byte command = (adress << 4) | type;
-  softSerial.write((uint8_t)254);  
-  softSerial.write(command);
-  softSerial.write(message);
-  softSerial.write((uint8_t)255);  
+    messagesSent++;
+    byte command = (adress << 4) | type;
+    softSerial.write((uint8_t)254);  
+    softSerial.write(command);
+    softSerial.write(message);
+    softSerial.write((uint8_t)255);  
 }
 
 
@@ -331,7 +333,8 @@ void Communication::disconnect()
 /* Visualizes connection with the arduino status led.
    Off: no connection, On: full connection, Blink: upstream connection to master, waiting for further modules at the downstream interface.
 */
-void Communication::visualizeConnectionStatus(){
+void Communication::visualizeConnectionStatus()
+{
     switch(connectionStatus){
         case DISCONNECTED : digitalWrite(LED_PIN, LOW); break;
         case HARDWARE : {
@@ -343,4 +346,13 @@ void Communication::visualizeConnectionStatus(){
         } break;
         case SOFTWARE : digitalWrite(LED_PIN, HIGH); break;
     }
+}
+
+/* Number of messages sent over downstream interface by this class. Resets counter!!
+*/
+unsigned int Communication::getMessagesSent()
+{
+    unsigned int result = messagesSent;
+    messagesSent = 0;
+    return result;
 }
