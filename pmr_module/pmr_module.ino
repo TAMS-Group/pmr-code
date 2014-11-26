@@ -20,6 +20,7 @@
 #include "hardwareControl.h"
 #include "communication.h"
 #include "pmrTopology.h"
+#include "locomotion.h"
 #include "busTest.h"
 #include <PWMServo.h>
 #include <SoftwareSerial.h>
@@ -29,29 +30,12 @@
 //If softwareSerial pins are improperly connected, the bus reads constant 0. To avoid this,
 //only the master module is allowed to have adress=0 and the connection gets not accepted for a slave with this adress.
 
-//########sine generator parameters#########
-float sine_amplitude = 37;
-float sine_frequency = 0.5;
-float sine_phase = 130;
-float sine_offset = 0;
-//##########################################
-
-float locomotionAngles[15];
-int sampling = 30;  //set one angle every x milliseconds
-unsigned long lastSample = 0;
-
 //internal variables
 boolean verbose = false;
 
 //tmp pointer for command parsing
 uint8_t commP1;
 uint8_t commP2;
-
-//locomotion control variables
-boolean locomote = false;
-boolean forward = true;
-Locomotion locomotion = WALK;
-boolean locomotionGather = false;
 
 String commandBuffer = "";
 
@@ -67,6 +51,7 @@ bool _orientation;
 HardwareControl hc;
 Communication com;
 PMRTopology topo;
+Locomotion locomotion(&com, &hc, &topo);
 BusTest bustest(&com);
 
 void setup()  
@@ -99,8 +84,8 @@ void loop() {
     processCommand(_adress, _type, _message);
   }
 
-  // Communication between master and host is currently handled in the main object, since it invokes a lot of functions
   if(MASTER) {
+    // Communication between master and host is currently handled in the main object, since it invokes a lot of functions
     while(Serial.available() > 0) {
       char recv = Serial.read();
       if((recv == '\n') ||  (recv == '\r')){
@@ -111,29 +96,16 @@ void loop() {
         commandBuffer += recv;
       }
     }
+
+    //trigger locomotion module
+    locomotion.tick();
+
   }else{
     if(com.readDownstream(&_adress, &_type, &_message)) {
       processCommand(_adress, _type, _message);
     }
   }
 
-  if(locomote && MASTER) {
-    if(millis() > lastSample + sampling) {
-      lastSample = millis();
-      switch(locomotion) {
-        case WALK: {
-          moveSinusoidal(forward);
-        } break; 
-        case ROLL: {
-          moveRoll(forward);
-        } break;
-        default: {
-          moveSinusoidal(forward);
-        }
-        break;
-      }
-    }
-  }
   //trigger servo clock   
   hc.tick();
 
@@ -175,24 +147,22 @@ void parseCommand() {
     topo.printTopology();
     
   }else if(command.equalsIgnoreCase("start")) {
-    locomote = true;
+    locomotion.start();
     
   }else if(command.equalsIgnoreCase("stop")) {
-    locomote = false;
+    locomotion.stop();
 
   }else if(command.equalsIgnoreCase("locomotion")) {
     String type = nextParameter();
     if(type.equalsIgnoreCase("walk")){
-      locomotion = WALK;
-      Serial.println("Locomotion type: walk (standard)");
+      locomotion.walk();
     }
     if(type.equalsIgnoreCase("roll")){
-      locomotion = ROLL;
-      Serial.println("Locomotion type: roll");
+      locomotion.roll();
     }
     
   }else if(command.equalsIgnoreCase("cd")) {
-    forward = forward ? false : true; 
+    locomotion.changeDirection();
     
   }else if(command.equalsIgnoreCase("engage")) {
     byte commandAdress = (byte) nextParameter().toInt();
@@ -222,22 +192,22 @@ void parseCommand() {
     String parameter = nextParameter();
     char tmp[parameter.length()+1];
     parameter.toCharArray(tmp, parameter.length()+1);
-    sine_frequency = atof(tmp);
+    locomotion.setFrequency(atof(tmp));
              
   }else if(command.equalsIgnoreCase("setamplitude")) {    
-    sine_amplitude = nextParameter().toInt();
+    locomotion.setAmplitude(nextParameter().toInt());
        
   }else if(command.equalsIgnoreCase("setphase")) {    
-    sine_phase = nextParameter().toInt();
+    locomotion.setPhase(nextParameter().toInt());
  
   }else if(command.equalsIgnoreCase("setsampling")) {    
-    sampling = nextParameter().toInt();
+    locomotion.setSampling(nextParameter().toInt());
     
   }else if(command.equalsIgnoreCase("enablelocomotiongather")) {    
-    locomotionGather = true;
+    locomotion.gatherAngles(true);
     
   }else if(command.equalsIgnoreCase("disablelocomotiongather")) {    
-    locomotionGather = false;    
+    locomotion.gatherAngles(false);
     
   }else if(command.equalsIgnoreCase("bustest")) {    
     if(bustest.isActive()) {
@@ -386,67 +356,6 @@ void processCommand(byte adress, byte type, byte message)
       } break;
       default:
       break;
-    }
-  }
-}
-
-
-// output is angle in degree
-float sineFunction(float amp, float phase, float freq, float offset){
-  float result = sin((millis()/(float)1000*2*PI)*freq+(phase/360*2*PI))*amp;
-  result+=offset;
-    
-  return result;
-}
-
-
-// generates an array for one locomotion-step using a sinusoidal generator function for a specific number of joints
-float* calculateNextJointPositions(int numOfJoints, bool forward){
-  int dir = forward ? 1 : -1;
-  for(int i=0; i<numOfJoints; i++){
-    locomotionAngles[i] = sineFunction(sine_amplitude, sine_phase*(i*dir), sine_frequency, sine_offset);
-  }      
-  return locomotionAngles;
-}
-
-
-// generates sinusoidal locomotion in forward or backward direction
-void moveSinusoidal(bool forward){ 
-  float* angles = calculateNextJointPositions(topo.getPitchingJointsCount(), forward);
-  byte modulesCount = topo.getModulesCount();
-  
-  byte currentPitchingJoint = 0;
-  if(locomotionGather) {Serial.print("locomotion pattern:");}
-  for(int i=0; i<modulesCount; i++){
-    if(topo.getOrientation(i)){  
-      if(locomotionGather){        
-        if(i>0) {Serial.print(" ");}
-        if(i==(modulesCount-1)) {Serial.println(angles[i]);
-        } else {Serial.print(angles[i]);}
-      }        
-      if(ADRESS == topo.getAdress(i)){
-        hc.setAngle(static_cast<int>(angles[i]));
-      } else{
-        com.sendDownstream(topo.getAdress(i), SET_ANGLE, (static_cast<byte>(angles[currentPitchingJoint]+128)));
-      }
-      currentPitchingJoint++;
-    }
-  }    
-}
-
-void moveRoll(bool forward){
-  int dir = forward ? 1 : -1;
-  short int rotate = 1;
-  for(int i=0; i<topo.getModulesCount(); i++){
-    if(topo.getOrientation(i)){
-      if(ADRESS == topo.getAdress(i)){
-        hc.setServoPosition(static_cast<int>(sineFunction(sine_amplitude, 0, sine_frequency, sine_offset)));
-      }else{
-        com.sendDownstream(topo.getAdress(i), SET_ANGLE, (static_cast<byte>(rotate * sineFunction(sine_amplitude, 0, sine_frequency, sine_offset)+128)));
-      }
-    }else{
-      com.sendDownstream(topo.getAdress(i), SET_ANGLE, (static_cast<byte>(rotate * sineFunction(sine_amplitude, sine_phase, sine_frequency, sine_offset)+128)));
-      rotate = rotate*-1;
     }
   }
 }

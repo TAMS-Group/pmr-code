@@ -21,6 +21,12 @@
     #include "configuration.h"
     #include <SoftwareSerial.h>
 
+    enum ConnectionStatus{
+        DISCONNECTED,
+        HARDWARE,
+        SOFTWARE
+    };
+
     class Communication
     {
     public:

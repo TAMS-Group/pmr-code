@@ -77,18 +77,6 @@ enum CommandType
     CONNECT = 9//ok
 };
 
-enum ConnectionStatus{
-    DISCONNECTED,
-    HARDWARE,
-    SOFTWARE
-};
-
-enum Locomotion
-{
-    WALK = 0,
-    ROLL = 1
-};
-
 struct Topology
 {
     byte adress;
