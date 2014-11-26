@@ -27,19 +27,12 @@
 #include <EEPROM.h>
 
 
-//If softwareSerial pins are improperly connected, the bus reads constant 0. To avoid this,
-//only the master module is allowed to have adress=0 and the connection gets not accepted for a slave with this adress.
-
-//internal variables
 boolean verbose = false;
 
 //tmp pointer for command parsing
 uint8_t commP1;
 uint8_t commP2;
-
 String commandBuffer = "";
-
-int maxAngle = 90;
 
 // variables used in loop()
 byte _adress;
@@ -65,6 +58,7 @@ void setup()
 
 
 void loop() {
+  // tick handshaking
   if(com.connect(&_adress, &_orientation)) {
     if(MASTER) {
       topo.enqueModule(_adress, _orientation);
@@ -73,15 +67,18 @@ void loop() {
     }
   }
   
+  //tick heartbeat
   if(!com.heartBeat()) {
     //lost downstream connection, remove modules from list
     processCommand(ADRESS, TOPOLOGY, 2);
   }
 
+  //tick readUpstream. This is not encapsulated because the return value is processed in main
   if(com.readUpstream(&_adress, &_type, &_message)) {
     processCommand(_adress, _type, _message);
   }
 
+  //only if we are the master node
   if(MASTER) {
     // Communication between master and host is currently handled in the main object, since it invokes a lot of functions
     while(Serial.available() > 0) {
@@ -99,6 +96,7 @@ void loop() {
     locomotion.tick();
 
   }else{
+    //tick readDownstream. Unnecessary if we are master, in this case downstream would point to the host.
     if(com.readDownstream(&_adress, &_type, &_message)) {
       processCommand(_adress, _type, _message);
     }
@@ -214,6 +212,14 @@ void parseCommand() {
       int freq = nextParameter().toInt();
       byte adress = nextParameter().toInt();
       bustest.start(freq, adress);
+    }
+
+  }else if(command.equalsIgnoreCase("verbose")) {
+    verbose = !verbose;
+    if(verbose) {
+      Serial.println("Activated verbose information output");
+    }else{
+      Serial.println("Stopped verbose information output");
     }
                                 
   }else{

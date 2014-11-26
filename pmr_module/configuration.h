@@ -21,6 +21,8 @@
 //###### IMPORTANT BASIC SETTINGS #################
 #define MASTER true // Is this the master node?
 #define ADRESS 0    // Adress of this node. 0 if master, 1..254 else
+//If softwareSerial pins are improperly connected, the bus reads constant 0. To avoid this,
+//only the master module is allowed to have adress=0 and the connection gets not accepted for a slave with this adress.
 //###### IMPORTANT BASIC SETTINGS #################
 
 
