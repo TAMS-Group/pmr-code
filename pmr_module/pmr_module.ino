@@ -168,6 +168,9 @@ void parseCommand() {
       }else{
         locomotion.stopOscillation();
       }
+      if(commandAdress==15) {
+        com.sendDownstream(commandAdress, OSCILLATE, value);  
+      }
     }else{
       com.sendDownstream(commandAdress, OSCILLATE, value);
     }
@@ -203,6 +206,9 @@ void parseCommand() {
     parameter.toCharArray(tmp, parameter.length()+1);
     if(commandAdress==ADRESS || commandAdress==15) {
       locomotion.setFrequency(atof(tmp));
+      if(commandAdress==15) {
+        com.sendDownstream(commandAdress, SET_FREQUENCY, (byte)(10/atof(tmp)));
+      }
     }else{
       // We have a problem with the message concept at this point. Float values are not immediately possible.
       // Therefore, we send 10/freq and interpret this value at the recieve-side as freq=10/value.
@@ -216,11 +222,28 @@ void parseCommand() {
     byte commandAdress = (byte) nextParameter().toInt();  
     int parameter = nextParameter().toInt();
     if(commandAdress==ADRESS || commandAdress==15) {
+      if(commandAdress==15) {
+        com.sendDownstream(commandAdress, SET_PHASE, (byte)(parameter/2));
+      }
       locomotion.setPhase(parameter);
     }else{
       // We have a problem with the message concept at this point. 2^8=256, but we need 360.
       // Therefore, we send phase/2 and interpret this value at the recieve-side as phase = value*2.
       com.sendDownstream(commandAdress, SET_PHASE, (byte)(parameter/2));
+    }
+
+  }else if(command.equalsIgnoreCase("clockreset")) {    
+    byte commandAdress = (byte) nextParameter().toInt();  
+    Serial.print("Command adress: ");
+    Serial.println(int(commandAdress));
+    if(commandAdress==ADRESS || commandAdress==15) {
+      locomotion.resetClockCounter();
+      if(commandAdress==15) {
+        Serial.println("sent clockreset broadcast");
+        com.sendDownstream(commandAdress, OSCILLATOR_CLOCK_RESET, 0);
+      }
+    }else{
+      com.sendDownstream(commandAdress, OSCILLATOR_CLOCK_RESET, 0);
     }
  
   }else if(command.equalsIgnoreCase("setsampling")) {    
@@ -314,10 +337,6 @@ void processCommand(byte adress, byte type, byte message)
          //TODO
          //sendViaBluetooth(currentAngle);
       } break;
-      case ANSWER_ANGLE: {
-        // TODO: irgendwas mit dem Winkel machen! z.B. sammeln und per BT rausschicken
-        //sendViaBluetooth(currentAngle);
-      } break;
       case PING: {
         if(bustest.isActive()) {
           bustest.ping();
@@ -385,9 +404,6 @@ void processCommand(byte adress, byte type, byte message)
       //   int currentAngle = servo.read();
          //TODO
          //sendUpstream(adress, ANSWER_ANGLE, static_cast<int>(currentAngle+90));
-      } break;
-      case ANSWER_ANGLE: {
-        com.sendUpstream(adress, ANSWER_ANGLE, message);
       } break;
       case PING: {
         com.sendUpstream(adress, PING, message);

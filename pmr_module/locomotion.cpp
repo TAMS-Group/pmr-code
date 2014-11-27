@@ -226,12 +226,12 @@ void Locomotion::moveSinusoidalLocal()
             }else{
                 com->sendDownstream(topology->getAdress(i), SET_PHASE, (byte) (((int)(i*sine_phase)%360)/2));
                 com->sendDownstream(topology->getAdress(i), OSCILLATE, 1);
-                Serial.print("SLocal, phase: ");
-                Serial.println(((int)(i*sine_phase)%360)/2);
             }
             currentPitchingJoint++;
         }
-    }    
+    }
+    com->sendDownstream(15, SET_FREQUENCY, int(sine_frequency));
+    com->sendDownstream(15, SET_AMPLITUDE, int(sine_amplitude));
 }
 
 // generates rolling locomotion in forward or backward direction
