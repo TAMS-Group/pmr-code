@@ -35,4 +35,26 @@ value | command
 These commands are enough to implement the recogonition of dynamic changes of the robot's topology via handshake,  probing of topology pins and heartbeat signals to recognize detaching of modules. Additionally the servo position can be calibrated and set to desired positions in order to achieve locomotion by utilizing sinusoidal oscillators.
 
 ### External
-The external command interface allows for simply setting desired positions of single modules' servo to generate locmotion on basis of low-level commands. Another option is to trigger stored locomotion procedures. These can be implemented as centralized motion control where the master module calculates the desired positions of each module at each time. Or they can result in starting distributed oscillators.
+The external command interface allows for simply setting desired positions of single modules' servo to generate locmotion on basis of low-level commands. Another option is to trigger stored locomotion procedures. These can be implemented as centralized motion control where the master module calculates the desired positions of each module at each time. Or they can result in starting distributed oscillators. The following table lists all available commands.
+
+command | parameters
+--- | ---
+BUSTEST|frequency address
+CD|
+CLOCKRESET|address
+DISABLELOCOMOTIONGATHER|
+ENABLELOCOMOTIONGATHER|
+ENGAGE|address status
+LOCOMOTION|walk roll
+OSCILLATE|address
+PING|address
+SETAMPLITUDE|address
+SETANGLE|address angle
+SETCALIBRATION|address
+SETFREQUENCY|address frequency
+SETPHASE|address phase
+SETSAMPLING|numberOfSamples
+START|
+STOP|
+TOPOLOGY|
+VERBOSE|
